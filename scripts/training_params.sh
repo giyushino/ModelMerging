@@ -5,8 +5,8 @@
 ###################
 
 # Model and dataset
-BASE_MODEL="Qwen/Qwen3-4B"  # Pre-trained on math data
-DATASET="$WORK/eff_grpo/data/train/math_12k"
+BASE_MODEL="Qwen/Qwen2.5-7B-Instruct"  # Pre-trained on math data
+DATASET="sunyiyou/math_algebra_polynomial_roots_7B_train"
 
 # Training hyperparameters
 NUM_EPOCHS=1
@@ -14,8 +14,6 @@ LEARNING_RATE=3e-6
 WEIGHT_DECAY=0.0
 GRAD_ACCUMULATION_STEPS=1
 WARMUP_STEPS=0
-PER_DEVICE_BATCH_SIZE=8
-CURRICULUM=False
 
 # Generation parameters
 TEMPERATURE=1.0

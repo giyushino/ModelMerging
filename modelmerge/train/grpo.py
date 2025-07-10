@@ -28,8 +28,10 @@ def parse_args():
     # Debug Parameters
     parser.add_argument("--debug_grpo", type=str, default="False",
                       help="Debug")
-    
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.use_vlm == "True":
+        args.use_vllm = True 
+    return args 
 
 def setup_distributed_training():
     # Set up distributed training environment variables
@@ -42,7 +44,7 @@ def setup_distributed_training():
 
 #model_name = "Qwen/Qwen2.5-7B-Instruct"
 
-
+# note to self: i think they use dr.grpo? maybe not
 def main():
     args = parse_args()
     
@@ -68,13 +70,7 @@ def main():
     training_args = GRPOConfig(
         output_dir=output_dir,
         num_train_epochs=args.num_train_epochs,
-        per_device_train_batch_size=args.per_device_train_batch_size * args.batch_size_multiplier * args.prompt_multiplier * args.log_prob_multiplier,
-    )
-
-    training_args = CustomGRPOConfig(
-        output_dir=output_dir,
-        num_train_epochs=args.num_train_epochs,
-        per_device_train_batch_size=args.per_device_train_batch_size * args.batch_size_multiplier * args.prompt_multiplier * args.log_prob_multiplier,
+        per_device_train_batch_size=args.per_device_train_batch_size 
         learning_rate=args.learning_rate,
         lr_scheduler_type="constant",
         weight_decay=args.weight_decay,
@@ -85,7 +81,7 @@ def main():
         save_strategy=args.save_strategy,
         save_total_limit=5,
         local_rank=local_rank,
-        report_to="wandb" if rank in [-1, 0] else None,
+        #report_to="wandb" if rank in [-1, 0] else None,
         ddp_find_unused_parameters=False,
         num_generations=args.num_generations,
         log_completions=True,
@@ -97,78 +93,27 @@ def main():
         scale_rewards=args.scale_rewards,
         loss_type=args.loss_type,
         model_init_kwargs={"torch_dtype": "bfloat16"},
-        batch_size_multiplier=args.batch_size_multiplier,
         use_vllm=args.use_vllm,
         vllm_server_host=args.vllm_server_host,
         vllm_server_port=args.vllm_server_port,
-        use_cppo=args.use_cppo,
-        cppo_multiplier=args.cppo_multiplier,
-        debug_grpo=args.debug_grpo,
-        prompt_multiplier=args.prompt_multiplier,
-        only_positive_adv=args.only_positive_adv,
-        log_prob_multiplier=args.log_prob_multiplier,
-        maximize_throughput=args.maximize_throughput
     )
 
-    if args.curriculum == True:
-        # Get the starting step for completions when resuming
-        last_completion = 0
-        if resume_checkpoint:
-            checkpoint_info = get_checkpoint_info(resume_checkpoint)
-            if checkpoint_info:
-                last_completion = checkpoint_info['global_step']
-                logger.info(f"Setting last_completion to {last_completion} for curriculum callback")
-        
-        # Initialize trainer        
-        trainer = CustomGRPOTrainer(
-            model=args.model_name_or_path,
-            reward_funcs=reward_funcs,
-            args=training_args,
-            train_dataset=train_dataset, 
-            callbacks=[EndOfEpochCallback(
-                                          args.data_selection_strategy, 
-                                          args.data_selection_slice, 
-                                          args.data_selection_ratio, 
-                                          args.wandb_run_name,
-                                          last_completion=last_completion
-                                          )]
-        )
-
-    # normal training, default
-    else:
-        trainer = CustomGRPOTrainer(
-            model=args.model_name_or_path,
-            reward_funcs=reward_funcs,
-            args=training_args,
-            train_dataset=train_dataset, 
-        )
+    
+    # Initialize trainer        
+    trainer = GRPOTrainer(
+        model=args.model_name_or_path,
+        reward_funcs=reward_funcs,
+        args=training_args,
+        train_dataset=train_dataset, 
+    )
     
     # Train the model with resume capability
-    trainer.train(resume_from_checkpoint=resume_checkpoint)
+    trainer.train()
     
     # Save final model if main process
     if rank in [-1, 0]:
         trainer.save_model()
-        wandb.finish()
 
-"""
-def install_signal_handlers(trainer):
-    def handle_sigterm(signum, frame):
-        print("SIGTERM received. Saving model...")
-        trainer.save_model(output_dir=os.path.join(trainer.args.output_dir, "emergency_save"))
-        sys.exit(0)
-
-    def handle_sigint(signum, frame):
-        print("SIGINT (Ctrl+C) received. Saving model...")
-        trainer.save_model(output_dir=os.path.join(trainer.args.output_dir, "emergency_save"))
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, handle_sigterm)
-    signal.signal(signal.SIGINT, handle_sigint)
-
-# Then before training starts:
-install_signal_handlers(trainer)
-"""
 
 
 if __name__ == "__main__":
