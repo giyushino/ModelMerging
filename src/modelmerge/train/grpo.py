@@ -10,6 +10,7 @@ from modelmerge.grader import compute_rewards
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train with GRPO using distributed setup")
+    """
     parser.add_argument("--model_name_or_path", type=str, required=True,
                       help="Path to pretrained model or model identifier from huggingface.co/models")
 
@@ -28,9 +29,45 @@ def parse_args():
     # Debug Parameters
     parser.add_argument("--debug_grpo", type=str, default="False",
                       help="Debug")
+    """
+    parser.add_argument("--model_name_or_path", type=str, required=True,
+                      help="Path to pretrained model or model identifier from huggingface.co/models")
+    parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--dataset_name", type=str, required=True)
+    parser.add_argument("--curriculum", action="store_true")
+    parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--resume_from_checkpoint", action="store_true")
+    parser.add_argument("--num_train_epochs", type=int, default=1)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=1)
+    parser.add_argument("--learning_rate", type=float, default=3e-6)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--warmup_steps", type=int, default=0)
+    parser.add_argument("--logging_steps", type=int, default=1)
+    parser.add_argument("--save_strategy", type=str, default="steps")
+    parser.add_argument("--save_steps", type=int, default=2000)
+    parser.add_argument("--local_dataset", action="store_true")
+    parser.add_argument("--num_generations", type=int, default=8)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--max_completion_length", type=int, default=2048)
+    parser.add_argument("--max_prompt_length", type=int, default=1024)
+    parser.add_argument("--top_p", type=float, default=1.0, help="Top-p (nucleus) sampling parameter")
+    parser.add_argument("--scale_rewards", type=str, default="True",
+                      help="Scale rewards")
+    parser.add_argument("--loss_type", type=str, default="grpo",
+                      help="Loss type")
+    parser.add_argument("--use_vllm", type=str, default="True",
+                      help="Use VLLM")
+    parser.add_argument("--vllm_server_host", type=str, default="0.0.0.0",
+                      help="VLLM host")
+    parser.add_argument("--vllm_server_port", type=int, default=8000,
+                      help="VLLM port")
+    parser.add_argument("--deepspeed", action="store_true")
+
     args = parser.parse_args()
-    if args.use_vlm == "True":
+    if args.use_vllm == "True":
         args.use_vllm = True 
+    print(args.loss_type)
     return args 
 
 def setup_distributed_training():
@@ -50,8 +87,7 @@ def main():
     
     local_rank, world_size, rank = setup_distributed_training()
     # Set up output directory
-    output_dir = os.path.join(args.output_dir, args.wandb_run_name)
-    
+    #output_dir = os.path.join(args.output_dir, args.wandb_run_name)
     reward_funcs = [compute_rewards]
     reward_weights = [1.0] 
     
@@ -68,9 +104,9 @@ def main():
     
 
     training_args = GRPOConfig(
-        output_dir=output_dir,
+        output_dir=args.output_dir,
         num_train_epochs=args.num_train_epochs,
-        per_device_train_batch_size=args.per_device_train_batch_size 
+        per_device_train_batch_size=args.per_device_train_batch_size,
         learning_rate=args.learning_rate,
         lr_scheduler_type="constant",
         weight_decay=args.weight_decay,
