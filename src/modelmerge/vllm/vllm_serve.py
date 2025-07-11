@@ -230,7 +230,7 @@ def llm_worker(
                 # This is particularly useful here because we generate completions from the same prompts.
                 enable_prefix_caching=script_args.enable_prefix_caching,
                 max_model_len=script_args.max_model_len,
-                worker_extension_cls="eff_grpo.vllm.worker_extension.WeightSyncWorkerExtension"
+                worker_extension_cls="modelmerge.vllm.worker_extension.WeightSyncWorkerExtension"
             )
         except Exception as e:
             import traceback
