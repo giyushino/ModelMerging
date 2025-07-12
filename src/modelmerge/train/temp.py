@@ -50,8 +50,9 @@ training_args = GRPOConfig(
     vllm_server_port=args.port
 )
 
+#model="Qwen/Qwen2.5-7B-Instruct",
 trainer = GRPOTrainer(
-    model="Qwen/Qwen2.5-7B-Instruct",
+    model="Qwen/Qwen3-4B",
     reward_funcs=compute_rewards,
     args=training_args,
     train_dataset=train_dataset,
