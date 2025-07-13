@@ -13,10 +13,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train with GRPO using distributed setup")
     parser.add_argument("--port", type=int, default=8000,
                       help="VLLM port")
-    """
     parser.add_argument("--num_generations", type=int, default=2, 
                         help="Number of generations (num gpus * per device batch size)")
-    """
     args = parser.parse_args()
     return args 
 
@@ -52,11 +50,14 @@ training_args = GRPOConfig(
     vllm_mode="server",
     vllm_server_port=args.port,
     #num_generations = args.num_generations,
+    per_device_train_batch_size=2,
+    num_generations=6,
+    loss_type="grpo",
 )
 
 #model="Qwen/Qwen2.5-7B-Instruct",
 trainer = GRPOTrainer(
-    model="Qwen/Qwen3-0.6B",
+    model="Qwen/Qwen2.5-Math-1.5B-Instruct",
     reward_funcs=compute_rewards,
     args=training_args,
     train_dataset=train_dataset,

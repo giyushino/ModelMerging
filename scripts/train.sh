@@ -1,5 +1,9 @@
 #!/bin/bash
 
+source ~/.bashrc
+source $WORK/miniconda3/etc/profile.d/conda.sh
+conda activate modelmerge 
+
 export MASTER_PORT=29500
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export TOKENIZERS_PARALLELISM=false
@@ -32,22 +36,23 @@ PORT=$(get_random_port)
 echo "Using port" $PORT
 CUDA_VISIBLE_DEVICES=0 trl vllm-serve \
     --tensor-parallel-size 1 \
-    --model Qwen/Qwen3-0.6B \
+    --model Qwen/Qwen2.5-Math-1.5B-Instruct \
     --port "$PORT" \
     --max_model_len 2048 \
     --dtype float16 \
     --enable-prefix-caching True \
-    --gpu-memory-utilization 0.65 &
-    #> $WORK/ModelMerging/logs/vllm_server.log 2>&1 &
+    --gpu-memory-utilization 0.4 \
+    > $WORK/ModelMerging/logs/vllm_server.log 2>&1 &
 
+echo "Waiting for vLLM server…"
 while ! curl --silent --fail http://0.0.0.0:$PORT/health/; do
-  echo "Waiting for vLLM server…"
   sleep 1
 done
+echo "vLLM server started"
 
 # 3 gpus, 2 completions per prompt. change this later
 echo "Starting training"
 CUDA_VISIBLE_DEVICES=1,2,3 accelerate launch --num_machines 1 --num_processes 3 /home/allanz/ModelMerging/src/modelmerge/train/grpo.py \
     --port $PORT \
-    --num_generations 4
+    --num_generations 3
 

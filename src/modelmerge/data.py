@@ -1,4 +1,4 @@
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 
 #sunyiyou/math_comp_polynomial_gcd
 #sunyiyou/math_algebra_polynomial_roots_7B_train
@@ -25,3 +25,10 @@ def reformat_dataset(dataset, split):
 
     print(f"{count} of {count + len(reformatted)} elements were skipped due to formatting issues")
     return Dataset.from_list(reformatted) 
+
+
+
+if __name__ == "__main__":
+    dataset = load_dataset("sunyiyou/math_arithmetic_gcd_7B_train")
+    reformat = reformat_dataset(dataset, "train")
+    print(reformat[0])
