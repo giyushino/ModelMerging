@@ -64,7 +64,6 @@ async def process_all_messages(ds, port, model, completion_length):
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=1000
                 )
-
             correct = compute_rewards(r.choices[0].message.content, ground_truth=str(answer))
             return correct 
 
@@ -85,8 +84,9 @@ if __name__ == "__main__":
     args = parse_args()
     
     print("Loading Dataset...")
-    dataset = load_dataset(args.dataset_path)
-    reformatted = reformat_dataset(dataset, "train")
+    #dataset = load_dataset(args.dataset_path)["train"]
+    dataset = load_dataset(args.dataset_path)["train"].select([900:])
+    reformatted = reformat_dataset(dataset)
     
     print("Computing accuracy")
     asyncio.run(process_all_messages(reformatted, args.port, args.model, args.max_completion_length))

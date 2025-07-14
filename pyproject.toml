@@ -19,6 +19,8 @@ dependencies = [
     "vllm",
     "argparse", 
     "trl",
-    "loguru"
+    "loguru", 
+    "wandb",
+    "argparse",
 ]
 

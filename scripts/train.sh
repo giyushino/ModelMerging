@@ -4,7 +4,6 @@ source ~/.bashrc
 source $WORK/miniconda3/etc/profile.d/conda.sh
 conda activate modelmerge 
 
-export MASTER_PORT=29500
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export TOKENIZERS_PARALLELISM=false
 export NCCL_TIMEOUT=3600  # 1 hour
@@ -12,16 +11,15 @@ export TORCH_DISTRIBUTED_TIMEOUT=3600
 export NCCL_BLOCKING_WAIT=1  # Make operations synchronous
 # Additional stability settings
 export NCCL_ASYNC_ERROR_HANDLING=1
-export NCCL_DEBUG=INFO  # Enable debugging
+#export NCCL_DEBUG=INFO  # Enable debugging
 # make sure nvlink isn't on
 export NCCL_P2P_DISABLE=1
-
+#source $WORK/ModelMerging/scripts/training_params.sh
 
 #Killing processes on all GPUs
 echo "Killing any existing GPU processes..."
 nvidia-smi | grep 'python' | awk '{ print $5 }' | xargs -n1 kill -9 > /dev/null 2>&1
 sleep 15
-echo "Starting VLLM server..."
 
 get_random_port() {
   local port
@@ -33,12 +31,18 @@ get_random_port() {
 }
 
 PORT=$(get_random_port)
+MAX_COMPLETION_LENGTH=1024
+MAX_PROMPT_LENGTH=512
+MAX_MODEL_LENGTH=$(($MAX_COMPLETION_LENGTH + $MAX_PROMPT_LENGTH))
+MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+
 echo "Using port" $PORT
+
 CUDA_VISIBLE_DEVICES=0 trl vllm-serve \
     --tensor-parallel-size 1 \
-    --model Qwen/Qwen2.5-Math-1.5B-Instruct \
+    --model $MODEL_NAME \
     --port "$PORT" \
-    --max_model_len 2048 \
+    --max_model_len $MAX_MODEL_LENGTH \
     --dtype float16 \
     --enable-prefix-caching True \
     --gpu-memory-utilization 0.4 \
@@ -50,9 +54,36 @@ while ! curl --silent --fail http://0.0.0.0:$PORT/health/; do
 done
 echo "vLLM server started"
 
-# 3 gpus, 2 completions per prompt. change this later
+NUM_GPUS=3
+PER_DEVICE_BATCH_SIZE=3
+NUM_GENERATIONS=$(($NUM_GPUS * $PER_DEVICE_BATCH_SIZE))
+WANDB_RUN_NAME="qwen1.5b_arithmetic"
+SAVE_STEPS=100
+export WANDB_DIR=$WORK/ModelMerging
+
+
+#sunyiyou/math_comp_polynomial_gcd
+#sunyiyou/math_algebra_polynomial_roots_7B_train
+#sunyiyou/math_arithmetic_gcd_7B_train
+
+DATASET=sunyiyou/math_arithmetic_gcd_7B_train
+
 echo "Starting training"
 CUDA_VISIBLE_DEVICES=1,2,3 accelerate launch --num_machines 1 --num_processes 3 /home/allanz/ModelMerging/src/modelmerge/train/grpo.py \
+    --model_name $MODEL_NAME \
     --port $PORT \
-    --num_generations 3
+    --num_generations $NUM_GENERATIONS \
+    --per_device_train_batch_size $PER_DEVICE_BATCH_SIZE \
+    --dataset_path $DATASET \
+    --local_dataset false \
+    --save_path $WORK/ModelMerging/checkpoints/$WANDB_RUN_NAME \
+    --wandb_run_name $WANDB_RUN_NAME \
+    --save_steps $SAVE_STEPS \
+    --max_completion_length $MAX_COMPLETION_LENGTH \
+    --max_prompt_length $MAX_PROMPT_LENGTH
 
+
+
+
+echo "Killing any existing GPU processes..."
+nvidia-smi | grep 'python' | awk '{ print $5 }' | xargs -n1 kill -9 > /dev/null 2>&1

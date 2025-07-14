@@ -33,7 +33,7 @@ def compute_rewards(prompts, completions, completion_ids, **kwargs):
             if 151645 not in completion_id:
                 score -= 1 
         rewards.append(score)
-    #print(f"rewards: {rewards}")
+    print(f"rewards: {rewards}")
     return rewards
 
 

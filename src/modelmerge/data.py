@@ -4,13 +4,14 @@ from datasets import Dataset, load_dataset
 #sunyiyou/math_algebra_polynomial_roots_7B_train
 #sunyiyou/math_arithmetic_gcd_7B_train
 
-def reformat_dataset(dataset, split):
+def reformat_dataset(dataset):
     """
     Reformat the oob dataset to work with GRPO Trainer class 
     """
     reformatted = []
     count = 0
-    for element in dataset[split]: 
+
+    for element in dataset: 
         try: 
             # extract question and remove their formatting instructions
             question = element["messages"][0]["content"].split("\n\nPresent the answer in LaTex format: \\boxed{Your answer}")[0]
@@ -29,6 +30,6 @@ def reformat_dataset(dataset, split):
 
 
 if __name__ == "__main__":
-    dataset = load_dataset("sunyiyou/math_arithmetic_gcd_7B_train")
-    reformat = reformat_dataset(dataset, "train")
+    dataset = load_dataset("sunyiyou/math_arithmetic_gcd_7B_train")["train"]
+    reformat = reformat_dataset(dataset)
     print(reformat[0])
