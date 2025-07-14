@@ -4,8 +4,6 @@ source ~/.bashrc
 source $WORK/miniconda3/etc/profile.d/conda.sh
 conda activate modelmerge
 
-
-
 get_random_port() {
   local port
   # IANA suggests using ports 49152-65535 for dynamic/private ports
@@ -19,17 +17,23 @@ PORT=$(get_random_port)
 echo "Using port" $PORT
 
 
+MAX_COMPLETION_LENGTH=2048
+MAX_PROMPT_LENGTH=512
+MAX_MODEL_LENGTH=$(($MAX_COMPLETION_LENGTH + $MAX_PROMPT_LENGTH))
+MODEL="Qwen/Qwen2.5-1.5B-Instruct"
+#MODEL=/home/allanz/ModelMerging/checkpoints/qwen1.5b_arithmetic/checkpoint-1400/
+echo "Using" $MODEL 
 
-CUDA_VISIBLE_DEVICES=7 python -m vllm.entrypoints.openai.api_server \
-    --model Qwen/Qwen2.5-1.5B-Instruct \
+CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server \
+    --model $MODEL \
     --host 0.0.0.0 \
     --port $PORT \
     --tensor-parallel-size 1 \
     --gpu-memory-utilization 0.5 \
-    --max-model-len 4096 \
+    --max-model-len $MAX_MODEL_LENGTH \
     --max-num-seqs 256 \
     --max-num-batched-tokens 8192 \
-    --served-model-name Qwen/Qwen2.5-1.5B-Instruct \
+    --served-model-name $MODEL \
     --disable-log-requests \
     --trust-remote-code \
     --enable-prefix-caching \
@@ -47,12 +51,10 @@ echo "vLLM server started"
 #sunyiyou/math_algebra_polynomial_roots_7B_train
 #sunyiyou/math_arithmetic_gcd_7B_train
 
-DATASET="sunyiyou/math_comp_polynomial_gcd"
+DATASET="sunyiyou/math_arithmetic_gcd_7B_train"
+CHECKPOINT=$WORK/ModelMerging/checkpoints/qwen1.5b_arithmetic/checkpoint-1400/
 python $WORK/ModelMerging/src/modelmerge/eval/accuracy.py \
     --dataset_path $DATASET \
-    --model Qwen/Qwen2.5-1.5B-Instruct \
+    --model $MODEL \
     --port $PORT \
-    --max_completion_length 2048
-
-echo "Killing any existing GPU processes..."
-nvidia-smi | grep 'python' | awk '{ print $5 }' | xargs -n1 kill -9 > /dev/null 2>&1
+    --max_completion_length $MAX_COMPLETION_LENGTH \

@@ -31,14 +31,14 @@ get_random_port() {
 }
 
 PORT=$(get_random_port)
-MAX_COMPLETION_LENGTH=1024
+MAX_COMPLETION_LENGTH=2600
 MAX_PROMPT_LENGTH=512
 MAX_MODEL_LENGTH=$(($MAX_COMPLETION_LENGTH + $MAX_PROMPT_LENGTH))
 MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
 
 echo "Using port" $PORT
 
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve \
+CUDA_VISIBLE_DEVICES=3 trl vllm-serve \
     --tensor-parallel-size 1 \
     --model $MODEL_NAME \
     --port "$PORT" \
@@ -55,9 +55,9 @@ done
 echo "vLLM server started"
 
 NUM_GPUS=3
-PER_DEVICE_BATCH_SIZE=3
+PER_DEVICE_BATCH_SIZE=2
 NUM_GENERATIONS=$(($NUM_GPUS * $PER_DEVICE_BATCH_SIZE))
-WANDB_RUN_NAME="qwen1.5b_arithmetic"
+WANDB_RUN_NAME="qwen1.5b_arithmetic_2048_batch_size6"
 SAVE_STEPS=100
 export WANDB_DIR=$WORK/ModelMerging
 
@@ -67,9 +67,8 @@ export WANDB_DIR=$WORK/ModelMerging
 #sunyiyou/math_arithmetic_gcd_7B_train
 
 DATASET=sunyiyou/math_arithmetic_gcd_7B_train
-
 echo "Starting training"
-CUDA_VISIBLE_DEVICES=1,2,3 accelerate launch --num_machines 1 --num_processes 3 /home/allanz/ModelMerging/src/modelmerge/train/grpo.py \
+CUDA_VISIBLE_DEVICES=0,1,2 accelerate launch --num_machines 1 --num_processes 3 /home/allanz/ModelMerging/src/modelmerge/train/grpo.py \
     --model_name $MODEL_NAME \
     --port $PORT \
     --num_generations $NUM_GENERATIONS \
@@ -81,8 +80,6 @@ CUDA_VISIBLE_DEVICES=1,2,3 accelerate launch --num_machines 1 --num_processes 3 
     --save_steps $SAVE_STEPS \
     --max_completion_length $MAX_COMPLETION_LENGTH \
     --max_prompt_length $MAX_PROMPT_LENGTH
-
-
 
 
 echo "Killing any existing GPU processes..."

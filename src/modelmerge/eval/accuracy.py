@@ -19,8 +19,9 @@ def extract_solution(output):
     # if multiple \\boxed within output, get the last occurance
     match = re.search(r'\\boxed\{([^{}]*)\}(?!.*\\boxed\{)', output)
     if match: 
+        print("formatted correctly")
         return match.group(1)
-
+    print("formatted incorrectly")
     return None
 
 
@@ -85,7 +86,7 @@ if __name__ == "__main__":
     
     print("Loading Dataset...")
     #dataset = load_dataset(args.dataset_path)["train"]
-    dataset = load_dataset(args.dataset_path)["train"].select([900:])
+    dataset = load_dataset(args.dataset_path)["train"] #later select certain amount
     reformatted = reformat_dataset(dataset)
     
     print("Computing accuracy")
