@@ -1,5 +1,4 @@
 #!/bin/bash
-
 source ~/.bashrc
 source $WORK/miniconda3/etc/profile.d/conda.sh
 conda activate modelmerge 
@@ -14,9 +13,8 @@ export NCCL_ASYNC_ERROR_HANDLING=1
 #export NCCL_DEBUG=INFO  # Enable debugging
 # make sure nvlink isn't on
 export NCCL_P2P_DISABLE=1
-#source $WORK/ModelMerging/scripts/training_params.sh
 
-
+source $WORK/ModelMerging/scripts/training_params.sh
 get_random_port() {
   local port
   # IANA suggests using ports 49152-65535 for dynamic/private ports
@@ -25,7 +23,6 @@ get_random_port() {
   port=$((RANDOM % (max_port - min_port + 1) + min_port))
   echo $port
 }
-
 PORT=$(get_random_port)
 
 # Print configuration
@@ -33,36 +30,21 @@ echo "=============================================="
 echo "Training Configuration:"
 echo "Base Model            : $BASE_MODEL"
 echo "Dataset Path          : $DATASET" 
+echo "Local Dataset         : $LOCAL_DATASET"
 echo "Number of Epochs      : $NUM_EPOCHS"
 echo "Learning Rate         : $LEARNING_RATE"
 echo "Weight Decay          : $WEIGHT_DECAY"
 echo "Gradient Accum Steps  : $GRAD_ACCUMULATION_STEPS"
-echo "Warmup Steps          : $WARMUPSTEPS"
 echo "Logging Steps         : $LOGGING_STEPS"
 echo "Save Steps            : $SAVE_STEPS"
-echo "Total GPUs            : $TOTAL_GPUS"
+echo "Total GPUs            : $NUM_GPUS"
 echo "Per Device Batch Size : $PER_DEVICE_BATCH_SIZE"
 echo "Num Generations       : $NUM_GENERATIONS"
-echo "Effective batch size  : $(($PER_DEVICE_BATCH_SIZE * $TOTAL_GPUS * $GRAD_ACCUMULATION_STEPS))"
+echo "Effective Batch Size  : $(($PER_DEVICE_BATCH_SIZE * $(((NUM_GPUS - 1))) * $GRAD_ACCUMULATION_STEPS))"
 echo "WANDB Run Name        : $WANDB_RUN_NAME"
-echo "Resumed Checkpoint    : $RESUME_FROM_CHECKPOINT"
-echo "DeepSpeed Config      : $DS_CONFIG_PATH"
-echo "Resume Checkpoint     : $RESUME_FROM_CHECKPOINT"
-echo "Use LoRA              : $USE_LORA"
-echo "LoRA R                : $LORA_R"
-echo "LoRA Alpha            : $LORA_ALPHA"
-echo "LoRA Dropout          : $LORA_DROPOUT"
-echo "LoRA Target Modules   : $LORA_TARGET_MODULES"
-echo "LoRA Bias             : $LORA_BIAS"
-echo "=============================================="
-echo "Subset File Path      : $SUBSET_FILE_PATH"
-echo "Batch Size Multiplier : $BATCH_SIZE_MULTIPLIER"
-echo "Prompt Multiplier     : $PROMPT_MULTIPLIER"
-echo "Use CPPO              : $USE_CPPO"
-echo "CPPO Multiplier       : $CPPO_MULTIPLIER"
-echo "Only Positive Adv     : $ONLY_POSITIVE_ADV"
-echo "Log Prob Multiplier   : $LOG_PROB_MULTIPLIER"
-echo "Maximize Throughput   : $MAXIMIZE_THROUGHPUT"
+echo "Port for vLLM server  : $PORT" 
+#echo "Resumed Checkpoint    : $RESUME_FROM_CHECKPOINT" haven't implemented this yet
+#echo "Resume Checkpoint     : $RESUME_FROM_CHECKPOINT"
 echo "=============================================="
 echo "GRPO Specific Parameters:"
 echo "Scale Rewards         : $SCALE_REWARDS"
@@ -70,26 +52,12 @@ echo "Loss Type             : $LOSS_TYPE"
 echo "=============================================="
 
 
-get_random_port() {
-  local port
-  # IANA suggests using ports 49152-65535 for dynamic/private ports
-  local min_port=49152
-  local max_port=65535
-  port=$((RANDOM % (max_port - min_port + 1) + min_port))
-  echo $port
-}
-
-PORT=$(get_random_port)
-MAX_COMPLETION_LENGTH=1600
-MAX_PROMPT_LENGTH=512
+VLLM_GPU=$((NUM_GPUS - 1))
 MAX_MODEL_LENGTH=$(($MAX_COMPLETION_LENGTH + $MAX_PROMPT_LENGTH))
-MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
 
-echo "Using port" $PORT
-
-CUDA_VISIBLE_DEVICES=4 trl vllm-serve \
+CUDA_VISIBLE_DEVICES=$VLLM_GPU trl vllm-serve \
     --tensor-parallel-size 1 \
-    --model $MODEL_NAME \
+    --model $BASE_MODEL \
     --port "$PORT" \
     --max_model_len $MAX_MODEL_LENGTH \
     --dtype float16 \
@@ -97,28 +65,18 @@ CUDA_VISIBLE_DEVICES=4 trl vllm-serve \
     --gpu-memory-utilization 0.4 \
     > $WORK/ModelMerging/logs/vllm_server.log 2>&1 &
 
-echo "Waiting for vLLM server…"
+echo "Waiting for vLLM server to start on GPU $VLLM_GPU"
 while ! curl --silent --fail http://0.0.0.0:$PORT/health/; do
   sleep 1
 done
-echo "vLLM server started"
+echo "vLLM server started on GPU $VLLM_GPU" 
 
-NUM_GPU=4
-PER_DEVICE_BATCH_SIZE=2
-NUM_GENERATIONS=$(($NUM_GPU * $PER_DEVICE_BATCH_SIZE))
-WANDB_RUN_NAME="qwen1.5b_algebra_1600_batch_size8"
-SAVE_STEPS=100
+
 export WANDB_DIR=$WORK/ModelMerging
+echo "Starting training on GPUs $(seq -s, 0 $((NUM_GPUS - 2)))"
 
-
-#sunyiyou/math_comp_polynomial_gcd
-#sunyiyou/math_algebra_polynomial_roots_7B_train
-#sunyiyou/math_arithmetic_gcd_7B_train
-
-DATASET=sunyiyou/math_algebra_polynomial_roots_7B_train
-echo "Starting training"
-CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_machines 1 --num_processes $NUM_GPU /home/allanz/ModelMerging/src/modelmerge/train/grpo.py \
-    --model_name $MODEL_NAME \
+CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS - 2))) accelerate launch --num_machines 1 --num_processes $((NUM_GPUS - 1)) /home/allanz/ModelMerging/src/modelmerge/train/grpo.py \
+    --model_name $BASE_MODEL \
     --port $PORT \
     --num_generations $NUM_GENERATIONS \
     --per_device_train_batch_size $PER_DEVICE_BATCH_SIZE \
@@ -134,13 +92,12 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_machines 1 --num_processes 
     --num_train_epochs $NUM_EPOCHS \
     --learning_rate $LEARNING_RATE \
     --loss_type $LOSS_TYPE \
-    --grad_accumulation_steps $GRAD_ACCUMULATION_STEPS
+    --gradient_accumulation_steps $GRAD_ACCUMULATION_STEPS
 
 
-
-echo "Killing python processes on GPU $TARGET_GPU..."
-
+echo "Shutting down vLLM server on GPU $VLLM_GPU"
 nvidia-smi | grep 'python' \
-  | awk -v gpu="$TARGET_GPU" '$2 == gpu { print $5 }' \
+  | awk -v gpu="$VLLM_GPU" '$2 == gpu { print $5 }' \
   | xargs -r -n1 kill -9 > /dev/null 2>&1
 
+echo "All finished"
