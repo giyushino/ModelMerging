@@ -10,7 +10,6 @@ from trl import GRPOConfig, GRPOTrainer
 from modelmerge.data import reformat_dataset
 from modelmerge.grader import compute_rewards
 
-WORK = os.environ["WORK"]
 def parse_args():
     parser = argparse.ArgumentParser(description="Train with GRPO using distributed setup")
     parser.add_argument("--port", type=int, default=8000,
@@ -21,12 +20,18 @@ def parse_args():
     parser.add_argument("--local_dataset", type=str, default="False", 
                         help="Whether or not dataset is local path")
     parser.add_argument("--save_path", type=str)
+    parser.add_argument("--save_total_limit", type=str, default=5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--save_steps", type=int, default=100)
     parser.add_argument("--max_completion_length", type=int, default=2048)
     parser.add_argument("--max_prompt_length", type=int, default=512)
     parser.add_argument("--wandb_run_name", type=str, default="test")
     parser.add_argument("--model_name", type=str, default="Qwen/Qwen2.5-1.5B-Instruct")
+    parser.add_argument("--loss_type", type=str, default="grpo")
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--num_train_epochs", type=int, default=1)
+    parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     args = parser.parse_args()
 
     if args.local_dataset.lower() == "true":
@@ -63,9 +68,7 @@ if __name__ == "__main__":
     else:
         dataset = load_dataset(args.dataset_path)
 
-    # for now i'll only use 900 examples
-    dataset = dataset["train"].select(range(900))
-    train_dataset = reformat_dataset(dataset)
+    train_dataset = reformat_dataset(dataset["train"])
 
     if rank in [-1, 0]:
         wandb.init(
@@ -86,11 +89,14 @@ if __name__ == "__main__":
         report_to="wandb" if rank in [-1, 0] else None,
         save_strategy="steps",
         save_steps=args.save_steps,
-        save_total_limit=5,
-
+        save_total_limit=args.save_total_limit,
+        num_train_epochs=args.num_train_epochs,
+        learning_rate=args.learning_rate,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        temperature=args.temperature,
+        loss_type=args.loss_type,
            
         #log_completions=True
-        #loss_type="grpo",
     )
 
     #model="Qwen/Qwen2.5-7B-Instruct",

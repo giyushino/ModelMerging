@@ -20,8 +20,9 @@ echo "Using port" $PORT
 MAX_COMPLETION_LENGTH=2048
 MAX_PROMPT_LENGTH=512
 MAX_MODEL_LENGTH=$(($MAX_COMPLETION_LENGTH + $MAX_PROMPT_LENGTH))
-MODEL="Qwen/Qwen2.5-1.5B-Instruct"
+#MODEL="Qwen/Qwen2.5-1.5B-Instruct"
 #MODEL=/home/allanz/ModelMerging/checkpoints/qwen1.5b_arithmetic/checkpoint-1400/
+MODEL="Qwen/Qwen3-0.6B"
 echo "Using" $MODEL 
 
 CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server \
