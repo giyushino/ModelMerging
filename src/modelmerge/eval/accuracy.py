@@ -19,9 +19,7 @@ def extract_solution(output):
     # if multiple \\boxed within output, get the last occurance
     match = re.search(r'\\boxed\{([^{}]*)\}(?!.*\\boxed\{)', output)
     if match: 
-        print("formatted correctly")
         return match.group(1)
-    print("formatted incorrectly")
     return None
 
 
@@ -32,7 +30,9 @@ def compute_rewards(completion, ground_truth):
     solution = extract_solution(completion)
     if solution: 
         if str(ground_truth) == solution:
+            print("correct")
             return 1
+    print("incorrect")
     return 0
 
 
@@ -86,8 +86,9 @@ if __name__ == "__main__":
     
     print("Loading Dataset...")
     #dataset = load_dataset(args.dataset_path)["train"]
-    dataset = load_dataset(args.dataset_path)["train"] #later select certain amount
-    reformatted = reformat_dataset(dataset)
+    dataset = load_dataset(args.dataset_path)["train"]
+    print(dataset)
+    reformatted = reformat_dataset(dataset[900:1000])
     
     print("Computing accuracy")
     asyncio.run(process_all_messages(reformatted, args.port, args.model, args.max_completion_length))

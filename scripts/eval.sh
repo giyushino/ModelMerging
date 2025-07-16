@@ -20,12 +20,11 @@ echo "Using port" $PORT
 MAX_COMPLETION_LENGTH=2048
 MAX_PROMPT_LENGTH=512
 MAX_MODEL_LENGTH=$(($MAX_COMPLETION_LENGTH + $MAX_PROMPT_LENGTH))
-#MODEL="Qwen/Qwen2.5-1.5B-Instruct"
-#MODEL=/home/allanz/ModelMerging/checkpoints/qwen1.5b_arithmetic/checkpoint-1400/
-MODEL="Qwen/Qwen3-0.6B"
-echo "Using" $MODEL 
+MODEL="Qwen/Qwen2.5-1.5B-Instruct"
+#MODEL=$WORK/ModelMerging/checkpoints/qwen1.5b_arithmetic/checkpoint-1400/
+VLLM_GPU=0
 
-CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server \
+CUDA_VISIBLE_DEVICES=VLLM_GPU python -m vllm.entrypoints.openai.api_server \
     --model $MODEL \
     --host 0.0.0.0 \
     --port $PORT \
@@ -53,9 +52,15 @@ echo "vLLM server started"
 #sunyiyou/math_arithmetic_gcd_7B_train
 
 DATASET="sunyiyou/math_arithmetic_gcd_7B_train"
-CHECKPOINT=$WORK/ModelMerging/checkpoints/qwen1.5b_arithmetic/checkpoint-1400/
 python $WORK/ModelMerging/src/modelmerge/eval/accuracy.py \
     --dataset_path $DATASET \
     --model $MODEL \
     --port $PORT \
     --max_completion_length $MAX_COMPLETION_LENGTH \
+
+echo "Shutting down vLLM server on GPU $VLLM_GPU"
+nvidia-smi | grep 'python' \
+  | awk -v gpu="$VLLM_GPU" '$2 == gpu { print $5 }' \
+  | xargs -r -n1 kill -9 > /dev/null 2>&1
+
+echo "All finished"
