@@ -33,7 +33,6 @@ VLLM_GPU=0
 BATCH_SIZE=12
 MERGE=true
 SAVE=true
-SAVE_NAME="arithmetic_1.2_algebra_0.7"
 #MODEL=$MODEL_2
 
 
@@ -73,63 +72,13 @@ if [ "$MERGE" = false ]; then
       | awk -v gpu="$VLLM_GPU" '$2 == gpu { print $5 }' \
       | xargs -r -n1 kill -9 > /dev/null 2>&1
 else
-    if [ "$SAVE" = true ]; then 
-        MERGED=$WORK/ModelMerging/checkpoints/$SAVE_NAME
-
-        python $WORK/ModelMerging/src/modelmerge/merge/task_vector.py \
-            --model $MODEL \
-            --models "${MODELS[@]}" \
-            --strength "${MODEL_STRENGTHS[@]}" \
-            --save_path $MERGED
-
-        PORT=$(get_random_port)
-        echo "Using port" $PORT
-        CUDA_VISIBLE_DEVICES=$VLLM_GPU python -m vllm.entrypoints.openai.api_server \
-            --model $MERGED \
-            --host 0.0.0.0 \
-            --port $PORT \
-            --tensor-parallel-size 1 \
-            --gpu-memory-utilization 0.5 \
-            --max-model-len $MAX_MODEL_LENGTH \
-            --max-num-seqs 256 \
-            --max-num-batched-tokens 8192 \
-            --served-model-name $MERGED \
-            --disable-log-requests \
-            --trust-remote-code \
-            --enable-prefix-caching \
-            --use-v2-block-manager \
-            > $WORK/ModelMerging/logs/vllm_server_accuracy.log 2>&1 &
-
-        echo "Waiting for vLLM server…"
-        while ! curl --silent --fail http://0.0.0.0:$PORT/health/; do
-          sleep 1
-        done
-        echo "vLLM server started"
-
-        python $WORK/ModelMerging/src/modelmerge/eval/accuracy.py \
-            --dataset_path $DATASET \
-            --model $MERGED \
-            --port $PORT \
-            --max_completion_length $MAX_COMPLETION_LENGTH \
-        
-
-        echo "Shutting down vLLM server on GPU $VLLM_GPU"
-        nvidia-smi | grep 'python' \
-          | awk -v gpu="$VLLM_GPU" '$2 == gpu { print $5 }' \
-          | xargs -r -n1 kill -9 > /dev/null 2>&1
-
-        echo "Removing saved merged model"
-        rm -rf $MERGED
-
-    else
-        CUDA_VISIBLE_DEVICES=$VLLM_GPU python $WORK/ModelMerging/src/modelmerge/eval/accuracy_merge.py \
-            --dataset_path $DATASET \
-            --model $MODEL \
-            --max_completion_length $MAX_COMPLETION_LENGTH \
-            --models "${MODELS[@]}" \
-            --strength "${MODEL_STRENGTHS[@]}" \
-            --batch_size $BATCH_SIZE
-    fi
+    CUDA_VISIBLE_DEVICES=$VLLM_GPU python $WORK/ModelMerging/src/modelmerge/eval/accuracy_merge.py \
+        --dataset_path $DATASET \
+        --model $MODEL \
+        --max_completion_length $MAX_COMPLETION_LENGTH \
+        --models "${MODELS[@]}" \
+        --strength "${MODEL_STRENGTHS[@]}" \
+        --batch_size $BATCH_SIZE
 fi
 
 echo "All finished"

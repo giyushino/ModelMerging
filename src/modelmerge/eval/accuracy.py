@@ -1,16 +1,12 @@
 #conda_env: mergemodel
-import os
 import re
-import json
 import asyncio
 import argparse
-import pandas as pd
 
 from openai import AsyncOpenAI
 from datasets import load_dataset
 
 from modelmerge.data import reformat_dataset
-
 def extract_solution(output):
     """
     Use regex to extract boxed solution from model output
@@ -23,7 +19,7 @@ def extract_solution(output):
     return None
 
 
-def compute_rewards(completion, ground_truth):
+def compute_rewards_old(completion, ground_truth):
     """
     Extract \\boxed content from completion and compare to ground truth, return list of rewards
     """
@@ -36,13 +32,27 @@ def compute_rewards(completion, ground_truth):
     return 0
 
 
+def compute_rewards(completion, ground_truth):
+    """
+    Extract \\boxed content from completion and compare to ground truth, return list of rewards
+    """
+    solution = extract_solution(completion)
+    if solution: 
+        print(f"model answer: {solution} ||ground truth: {ground_truth}")
+        if str(ground_truth) == solution:
+            print("correct")
+            return 1
+    print("formatted incorrectly")
+    return 0
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Check completions for sparse errors")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to local dataset, or huggingface id")
     parser.add_argument("--port", type=int, required=True, help="port id")
     parser.add_argument("--model", type=str, required=True, help="model id")
     parser.add_argument("--max_completion_length", type=int, required=True, help="model length")
-    return parser.parse_args()
+    args = parser.parse_args()
+    return args
 
 
 async def process_all_messages(ds, port, model, completion_length):
@@ -77,19 +87,16 @@ async def process_all_messages(ds, port, model, completion_length):
     print(f"{total_correct} of {len(results)} correct")
 
 
-if __name__ == "__main__":
-    args = parse_args()
 
 if __name__ == "__main__":
     print("Parsing arguments...")
     args = parse_args()
     
     print("Loading Dataset...")
-    #dataset = load_dataset(args.dataset_path)["train"]
     dataset = load_dataset(args.dataset_path)["train"]
-    print(dataset)
-    reformatted = reformat_dataset(dataset[900:1000])
-    
+    #dataset = load_dataset(args.dataset_path)["train"].select(range(900,1000))
+    reformatted = reformat_dataset(dataset)
+        
     print("Computing accuracy")
     asyncio.run(process_all_messages(reformatted, args.port, args.model, args.max_completion_length))
 
